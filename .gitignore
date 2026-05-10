@@ -1,0 +1,6 @@
+*.log
+/.idea
+/.vscode
+/.claude
+/node_modules
+/vendor

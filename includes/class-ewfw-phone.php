@@ -13,14 +13,6 @@ defined( 'ABSPATH' ) || exit;
 class EWFW_Phone {
 
 	/**
-	 * Constructor.
-	 */
-	public function __construct() {
-		// Hook for Digits plugin compatibility.
-		add_filter( 'ewfw_get_user_phone', [ $this, 'maybe_get_digits_phone' ], 5, 2 );
-	}
-
-	/**
 	 * Get user phone number from order or user.
 	 *
 	 * @param WC_Order $order Order object.
@@ -103,16 +95,18 @@ class EWFW_Phone {
 	}
 
 	/**
-	 * Normalize phone number: convert Persian/Arabic digits and validate.
+	 * Normalize phone number: convert Persian/Arabic digits, remove non-digits,
+	 * strip country code, and ensure 10-digit format starting with 9.
 	 *
 	 * @param string $phone Raw phone number.
 	 * @return string Clean 10-digit phone starting with 9, or empty string.
 	 */
 	public static function normalize_phone( $phone ) {
-		// Remove all non-digit characters except digits.
-		$phone = preg_replace( '/\D/', '', $phone );
+		if ( empty( $phone ) ) {
+			return '';
+		}
 
-		// Convert Persian and Arabic digits to English.
+		// 1. Convert Persian and Arabic digits to English.
 		$persian = [ '۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹' ];
 		$arabic  = [ '٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩' ];
 		$english = [ '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' ];
@@ -120,30 +114,26 @@ class EWFW_Phone {
 		$phone = str_replace( $persian, $english, $phone );
 		$phone = str_replace( $arabic, $english, $phone );
 
-		// Remove leading country code if present (e.g., 98, +98, 0098).
-		$phone = preg_replace( '/^(0{0,2}98|\+98)/', '', $phone );
+		// 2. Remove all non-digit characters (this also removes '+').
+		$phone = preg_replace( '/\D/', '', $phone );
 
-		// Remove leading zero if length > 10.
-		if ( strlen( $phone ) > 10 && 0 === strpos( $phone, '0' ) ) {
+		// 3. Remove leading country code if present (98, 0098).
+		if ( preg_match( '/^98\d{10}$/', $phone ) ) {
+			$phone = substr( $phone, 2 );
+		} elseif ( preg_match( '/^0098\d{10}$/', $phone ) ) {
+			$phone = substr( $phone, 4 );
+		}
+
+		// 4. Remove leading zero if length > 10.
+		if ( strlen( $phone ) > 10 && '0' === $phone[0] ) {
 			$phone = substr( $phone, 1 );
 		}
 
-		// Must be exactly 10 digits starting with 9.
+		// 5. Must be exactly 10 digits starting with 9.
 		if ( ! preg_match( '/^9\d{9}$/', $phone ) ) {
 			return '';
 		}
 
-		return $phone;
-	}
-
-	/**
-	 * Maybe get phone from Digits plugin for user.
-	 *
-	 * @param string   $phone Phone number.
-	 * @param WC_Order $order Order object.
-	 * @return string
-	 */
-	public function maybe_get_digits_phone( $phone, $order ) {
 		return $phone;
 	}
 }

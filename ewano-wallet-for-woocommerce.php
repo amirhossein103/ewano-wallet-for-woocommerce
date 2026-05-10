@@ -12,6 +12,8 @@
  * WC requires at least: 5.0
  * WC tested up to:   8.5
  * Requires Plugins:  woocommerce
+ *
+ * @package EWANO_Wallet_For_WooCommerce
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -44,12 +46,6 @@ add_action( 'init', function () {
 	load_plugin_textdomain( 'ewfw', false, dirname( EWFW_PLUGIN_BASENAME ) . '/languages' );
 } );
 
-// Initialize plugin when WooCommerce is loaded.
-add_action( 'woocommerce_loaded', function () {
-	new EWFW_Settings();
-	new EWFW_Phone();
-} );
-
 // Register payment gateway.
 add_filter( 'woocommerce_payment_gateways', function ( $gateways ) {
 	$gateways[] = 'EWFW_Gateway';
@@ -60,19 +56,6 @@ add_filter( 'woocommerce_payment_gateways', function ( $gateways ) {
 add_action( 'before_woocommerce_init', function () {
 	if ( class_exists( \Automattic\WooCommerce\Utilities\FeaturesUtil::class ) ) {
 		\Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility( 'custom_order_tables', __FILE__, true );
-		\Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility( 'cart_checkout_blocks', __FILE__, true );
+		\Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility( 'cart_checkout_blocks', __FILE__, false );
 	}
 } );
-
-class EWFW_LOG{
-	/**
-	 * Log data into a file for debugging purposes.
-	 *
-	 * @param mixed $data The data to log.
-	 * @param string $file Path to log file.
-	 */
-	public static function log_to_file( mixed $data, string $file = __DIR__ . '/debug.log'): void {
-		$output = "[" . date('Y-m-d H:i:s') . "] " . print_r($data, true) . PHP_EOL;
-		file_put_contents($file, $output, FILE_APPEND);
-	}
-}

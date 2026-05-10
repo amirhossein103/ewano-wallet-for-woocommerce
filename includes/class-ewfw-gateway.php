@@ -17,7 +17,7 @@ class EWFW_Gateway extends WC_Payment_Gateway {
 	 */
 	public function __construct() {
 		$this->id                 = 'ewfw';
-		$this->icon               = '';
+		$this->icon               = EWFW_PLUGIN_URL . 'assets/images/ewano-logo.png';
 		$this->has_fields         = true;
 		$this->method_title       = __( 'کیف پول اِوانو', 'ewfw' );
 		$this->method_description = __( 'پرداخت مستقیم از کیف پول اِوانو.', 'ewfw' );
@@ -48,9 +48,6 @@ class EWFW_Gateway extends WC_Payment_Gateway {
 	/**
 	 * Enqueue SDK and loader on checkout page.
 	 */
-	/**
-	 * Enqueue SDK and loader on checkout page.
-	 */
 	public function enqueue_assets() {
 		if ( ! is_checkout() ) {
 			return;
@@ -67,16 +64,28 @@ class EWFW_Gateway extends WC_Payment_Gateway {
 			[ 'jquery', 'ewfw-sdk' ], EWFW_VERSION, true );
 
 		wp_localize_script( 'ewfw-loader', 'EWFW_Data', [
-			'ajax_url'    => admin_url( 'admin-ajax.php' ),
-			'confirm_url' => esc_url_raw( home_url( '/?wc-api=ewfw_confirm' ) ),
-			'nonce'       => wp_create_nonce( 'ewfw_nonce' ),
+			'ajax_url'        => admin_url( 'admin-ajax.php' ),
+			'confirm_url'     => esc_url_raw( WC()->api_request_url( 'ewfw_confirm' ) ),
+			'nonce'           => wp_create_nonce( 'ewfw_sdk_nonce' ),
+			'confirm_nonce'   => wp_create_nonce( 'ewfw_confirm_nonce' ),
+			'messages'        => [
+				'phone_invalid'   => __( 'شماره موبایل باید ۱۰ رقم و با ۹ شروع شود.', 'ewfw' ),
+				'loading'         => __( 'ارتباط با سرور اِوانو...', 'ewfw' ),
+				'sdk_retry'       => __( 'بارگذاری کیف پول اوانو...', 'ewfw' ),
+				'payment_failed'  => __( 'پرداخت ناموفق.', 'ewfw' ),
+				'confirm_failed'  => __( 'تایید پرداخت شکست خورد.', 'ewfw' ),
+				'server_error'    => __( 'خطا در برقراری ارتباط با سرور.', 'ewfw' ),
+				'retry_prompt'    => __( 'لطفا دوباره تلاش کنید و یا یک روش پرداخت دیگر را انتخاب کنید.', 'ewfw' ),
+				'success_message' => __( 'پرداخت با موفقیت ثبت شد! درحال بازگشت...', 'ewfw' ),
+			],
 		] );
-
 	}
 
+	/**
+	 * Admin assets for conditional settings.
+	 */
 	public function admin_enqueue_assets() {
-		// Admin settings page JS for conditional fields.
-		if ( is_admin() && isset( $_GET['section'] ) && 'ewfw' === $_GET['section'] ) {
+		if ( is_admin() && isset( $_GET['section'] ) && 'ewfw' === $_GET['section'] && 'wc-settings' === ( $_GET['page'] ?? '' ) ) {
 			wp_enqueue_script( 'ewfw-admin', EWFW_PLUGIN_URL . 'assets/js/ewfw-admin.js',
 				[ 'jquery' ], EWFW_VERSION, true );
 		}
@@ -114,9 +123,8 @@ class EWFW_Gateway extends WC_Payment_Gateway {
 			echo '<div style="display:flex; gap:8px; margin-top:5px;">';
 			echo '<input type="tel" 
                      id="ewfw_phone_input" 
-                     placeholder="09121234567" 
+                     placeholder="09123456789" 
                      pattern="09[0-9]{9}" 
-                     maxlength="10"
                      value="' . esc_attr( $detected_phone ) . '" 
                      style="direction:ltr; text-align:left; flex:1;" />';
 			echo '<button type="button" id="ewfw-save-phone" class="button">' . esc_html__( 'ذخیره', 'ewfw' ) . '</button>';
@@ -132,21 +140,18 @@ class EWFW_Gateway extends WC_Payment_Gateway {
 			     esc_html__( 'برای احراز هویت کیف پول، شماره موبایل شما الزامی است.', 'ewfw' ) . '</p>';
 			echo '<input type="tel" 
                      id="ewfw_phone_input_empty" 
-                     placeholder="09121234567" 
+                     placeholder="09123456789" 
                      pattern="09[0-9]{9}" 
-                     maxlength="10"
-                     value="" 
                      style="direction:ltr; text-align:left; width:100%; padding:8px; margin-top:5px;" />';
 			echo '</div>';
 		}
 
 		echo '</div>';
 
-// Hidden fields for SDK.
+		// Hidden fields for SDK.
 		echo '<div id="ewfw-sdk-container" style="display:none;"></div>';
 		echo '<input type="hidden" id="ewfw_reserve_id" name="ewfw_reserve_id" value="" />';
 		echo '<input type="hidden" id="ewfw_transaction_id" name="ewfw_transaction_id" value="" />';
-
 	}
 
 	/**
@@ -160,9 +165,6 @@ class EWFW_Gateway extends WC_Payment_Gateway {
 
 		switch ( $source ) {
 			case 'manual':
-				break;
-
-			case 'post_meta':
 				break;
 
 			case 'user_meta':
@@ -213,26 +215,26 @@ class EWFW_Gateway extends WC_Payment_Gateway {
 		return $phone;
 	}
 
-    /**
-     * Validate payment fields.
-     *
-     * @return bool
-     */
-    public function validate_fields() {
-        // phpcs:ignore WordPress.Security.NonceVerification.Missing
-        $phone = isset( $_POST['ewfw_phone'] ) ? sanitize_text_field( wp_unslash( $_POST['ewfw_phone'] ) ) : '';
-        $phone = EWFW_Phone::normalize_phone( $phone );
+	/**
+	 * Validate payment fields.
+	 *
+	 * @return bool
+	 */
+	public function validate_fields() {
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing
+		$phone = isset( $_POST['ewfw_phone'] ) ? sanitize_text_field( wp_unslash( $_POST['ewfw_phone'] ) ) : '';
+		$phone = EWFW_Phone::normalize_phone( $phone );
 
-        if ( empty( $phone ) ) {
-            wc_add_notice(
-                    __( 'برای پرداخت با کیف پول اوانو، ثبت شماره موبایل در بخش صورتحساب الزامی است.', 'ewfw' ),
-                    'error'
-            );
-            return false;
-        }
+		if ( empty( $phone ) ) {
+			wc_add_notice(
+				__( 'برای پرداخت با کیف پول اوانو، لطفاً شماره موبایل معتبر وارد کنید.', 'ewfw' ),
+				'error'
+			);
+			return false;
+		}
 
-        return true;
-    }
+		return true;
+	}
 
 	/**
 	 * Process payment.
@@ -244,6 +246,7 @@ class EWFW_Gateway extends WC_Payment_Gateway {
 		try {
 			$order  = wc_get_order( $order_id );
 			$amount = (int) $order->get_total();
+
 			// phpcs:ignore WordPress.Security.NonceVerification.Missing
 			$custom_phone = isset( $_POST['ewfw_phone'] ) ? sanitize_text_field( wp_unslash( $_POST['ewfw_phone'] ) ) : '';
 			$custom_phone = EWFW_Phone::normalize_phone( $custom_phone );
@@ -255,22 +258,29 @@ class EWFW_Gateway extends WC_Payment_Gateway {
 			}
 
 			if ( empty( $phone ) ) {
-				throw new Exception( __( 'شماره موبایل غیر مجاز است.', 'ewfw' ) );
-			}
-			if ( empty( $phone ) ) {
-				throw new Exception( __( 'شماره موبایل غیر مجاز است.', 'ewfw' ) );
+				throw new Exception( __( 'شماره موبایل نامعتبر است. لطفاً شماره صحیح کیف پول خود را وارد کنید.', 'ewfw' ) );
 			}
 
-			$callback_url = home_url( '/' ) . '?wc-api=ewfw_contract_callback&order_id=' . $order_id;
+			// Generate unique callback token to verify return from eWano.
+			$callback_token = wp_generate_password( 32, false );
+			$callback_url = add_query_arg( [
+				'wc-api'   => 'ewfw_contract_callback',
+				'order_id' => $order_id,
+				'token'    => $callback_token,
+			], '/' );
 
 			$api = new EWFW_API();
 			$api->client_login();
 
 			$contract_result = $api->get_or_create_contract( $phone, $callback_url );
 
+			// Save token for callback verification.
+			$order->update_meta_data( '_ewfw_callback_token', $callback_token );
+			$order->update_meta_data( '_ewfw_phone', $phone );
+			$order->save();
+
 			// Redirect to EWANO for contract signing.
 			if ( 'redirect' === $contract_result['status'] ) {
-				$order->update_meta_data( '_ewfw_phone', $phone );
 				$order->update_meta_data( '_ewfw_pending_contract', true );
 				$order->save();
 
@@ -289,8 +299,6 @@ class EWFW_Gateway extends WC_Payment_Gateway {
 			$order->update_meta_data( '_ewfw_contract_code', $contract_code );
 			$order->update_meta_data( '_ewfw_reserve_id', $reserve_id );
 			$order->update_meta_data( '_ewfw_token_id', $token_id );
-			$order->update_meta_data( '_ewfw_token', $api->get_token() );
-			$order->update_meta_data( '_ewfw_phone', $phone );
 			$order->update_meta_data( '_ewfw_pending_contract', false );
 			$order->save();
 
@@ -309,13 +317,18 @@ class EWFW_Gateway extends WC_Payment_Gateway {
 	 * AJAX handler: provide SDK parameters.
 	 */
 	public function ajax_init_sdk() {
-		check_ajax_referer( 'ewfw_nonce', 'nonce' );
+		check_ajax_referer( 'ewfw_sdk_nonce', 'nonce' );
 
 		$order_id = isset( $_POST['order_id'] ) ? absint( $_POST['order_id'] ) : 0;
 		$order    = wc_get_order( $order_id );
 
 		if ( ! $order || $this->id !== $order->get_payment_method() ) {
 			wp_send_json_error( __( 'شماره سفارش نامعتبر است.', 'ewfw' ) );
+		}
+
+		// Prevent guest access to critical data if not order owner (optional).
+		if ( ! is_user_logged_in() || (int) $order->get_customer_id() !== get_current_user_id() ) {
+			wp_send_json_error( __( 'دسترسی غیرمجاز.', 'ewfw' ) );
 		}
 
 		$api = new EWFW_API();
@@ -331,6 +344,11 @@ class EWFW_Gateway extends WC_Payment_Gateway {
 	 * Confirm handler after SDK closes.
 	 */
 	public function confirm_handler() {
+		// Verify nonce.
+		if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['nonce'] ) ), 'ewfw_confirm_nonce' ) ) {
+			wp_send_json_error( __( 'خطای امنیتی. لطفاً صفحه را دوباره بارگذاری کنید.', 'ewfw' ) );
+		}
+
 		$order_id   = isset( $_POST['order_id'] ) ? absint( $_POST['order_id'] ) : 0;
 		$reserve_id = isset( $_POST['reserve_id'] ) ? sanitize_text_field( wp_unslash( $_POST['reserve_id'] ) ) : '';
 
@@ -351,7 +369,9 @@ class EWFW_Gateway extends WC_Payment_Gateway {
 				$confirm = $api->confirm( $reserve_id );
 
 				if ( 204 === ( $confirm['result']['status']['code'] ?? 0 ) ) {
-					$order->payment_complete( $status_data['result']['data']['id'] ?? '' );
+					$transaction_id = $status_data['result']['data']['id'] ?? '';
+					$order->payment_complete( $transaction_id );
+					$order->update_meta_data( '_ewfw_transaction_id', $transaction_id );
 					$order->save();
 
 					wp_send_json_success( [
@@ -359,16 +379,21 @@ class EWFW_Gateway extends WC_Payment_Gateway {
 					] );
 				}
 			} elseif ( in_array( $txn_status, [ 'COMPLETED', 'SHIPPED' ], true ) ) {
-				$order->payment_complete( $status_data['result']['data']['id'] ?? '' );
+				$transaction_id = $status_data['result']['data']['id'] ?? '';
+				$order->payment_complete( $transaction_id );
+				$order->update_meta_data( '_ewfw_transaction_id', $transaction_id );
+				$order->save();
+
 				wp_send_json_success( [ 'redirect' => esc_url_raw( $this->get_return_url( $order ) ) ] );
 			}
 
-			$order->update_status( 'failed', sprintf( __( 'پرادخت با شکست روبرو شد. وصعیت: %s', 'ewfw' ), $txn_status ) );
+			// Unexpected or pending status – fail gracefully.
+			$order->update_status( 'failed', sprintf( __( 'پرداخت با شکست روبرو شد. وضعیت: %s', 'ewfw' ), $txn_status ) );
 			wp_send_json_error( __( 'پرداخت ناموفق.', 'ewfw' ) );
 
 		} catch ( Exception $e ) {
 			$order->update_status( 'failed', $e->getMessage() );
-			wp_send_json_error( esc_html( $e->getMessage() ) );
+			wp_send_json_error( __( 'خطایی در تأیید پرداخت رخ داد. لطفاً با پشتیبانی تماس بگیرید.', 'ewfw' ) );
 		}
 	}
 
@@ -376,14 +401,23 @@ class EWFW_Gateway extends WC_Payment_Gateway {
 	 * Callback after user signs contract on EWANO.
 	 */
 	public function contract_callback_handler() {
-		$order_id     = isset( $_GET['order_id'] ) ? absint( $_GET['order_id'] ) : 0;
+		$order_id      = isset( $_GET['order_id'] ) ? absint( $_GET['order_id'] ) : 0;
 		$contract_code = isset( $_GET['contractCode'] ) ? sanitize_text_field( wp_unslash( $_GET['contractCode'] ) ) : '';
-		$verified     = isset( $_GET['verify'] ) && 'true' === $_GET['verify'];
+		$verified      = isset( $_GET['verify'] ) && 'true' === $_GET['verify'];
+		$token         = isset( $_GET['token'] ) ? sanitize_text_field( wp_unslash( $_GET['token'] ) ) : '';
 
 		$order = wc_get_order( $order_id );
 
 		if ( ! $order || $this->id !== $order->get_payment_method() ) {
-			wp_die( esc_html__( 'Invalid order.', 'ewfw' ) );
+			wp_die( esc_html__( 'شماره سفارش نامعتبر است.', 'ewfw' ) );
+		}
+
+		// Verify callback token to prevent forgery.
+		$stored_token = $order->get_meta( '_ewfw_callback_token' );
+		if ( empty( $token ) || $token !== $stored_token ) {
+			wc_add_notice( __( 'درخواست نامعتبر. لطفاً دوباره تلاش کنید.', 'ewfw' ), 'error' );
+			wp_safe_redirect( wc_get_checkout_url() );
+			exit;
 		}
 
 		if ( ! $verified || empty( $contract_code ) ) {
@@ -392,7 +426,8 @@ class EWFW_Gateway extends WC_Payment_Gateway {
 			exit;
 		}
 
-		// Save contract code.
+		// Save contract code and clean up token.
+		$order->delete_meta_data( '_ewfw_callback_token' );
 		$order->update_meta_data( '_ewfw_contract_code', $contract_code );
 		$order->update_meta_data( '_ewfw_pending_contract', false );
 		$order->save();
@@ -429,7 +464,7 @@ class EWFW_Gateway extends WC_Payment_Gateway {
 			$transaction_id = $order->get_meta( '_ewfw_transaction_id' );
 
 			if ( ! $contract_code || ! $transaction_id ) {
-				throw new Exception( __( 'اطلاعات پرداخت دریافت نشد.', 'ewfw' ) );
+				throw new Exception( __( 'اطلاعات پرداخت برای بازگشت وجه یافت نشد.', 'ewfw' ) );
 			}
 
 			$refund_id = $api->refund_submit( $contract_code, $transaction_id, (int) $amount, $order_id );
@@ -438,7 +473,7 @@ class EWFW_Gateway extends WC_Payment_Gateway {
 			$order->add_order_note(
 				sprintf(
 				/* translators: 1: refund amount, 2: EWANO refund ID */
-					__( 'بازگشت %1$ ریال از اِوانو. شناسه عودت وجه: %2$s', 'ewfw' ),
+					__( 'بازگشت %1$s ریال از اِوانو. شناسه عودت وجه: %2$s', 'ewfw' ),
 					$amount,
 					$refund_id
 				)
@@ -453,12 +488,9 @@ class EWFW_Gateway extends WC_Payment_Gateway {
 	}
 }
 
-// AJAX handler for SDK init.
+// AJAX handlers.
 add_action( 'wp_ajax_ewfw_init_sdk', function () {
 	$gateway = new EWFW_Gateway();
 	$gateway->ajax_init_sdk();
 } );
-add_action( 'wp_ajax_nopriv_ewfw_init_sdk', function () {
-	$gateway = new EWFW_Gateway();
-	$gateway->ajax_init_sdk();
-} );
+// No nopriv! Guest users must not access SDK data.

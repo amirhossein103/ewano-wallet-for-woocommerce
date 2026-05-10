@@ -58,9 +58,6 @@ class EWFW_API {
 	/**
 	 * Send HTTP request to EWANO API.
 	 *
-	 * Uses WordPress HTTP API by default. Falls back to direct cURL
-	 * if "Non-standard Request" is enabled in plugin settings.
-	 *
 	 * @param string $method   HTTP method.
 	 * @param string $endpoint API endpoint.
 	 * @param array  $headers  Request headers.
@@ -127,6 +124,9 @@ class EWFW_API {
 	/**
 	 * Send request via direct cURL (fallback).
 	 *
+	 * Note: SSL verification is intentionally disabled to accommodate
+	 * old server environments that do not support modern TLS.
+	 *
 	 * @param string $method   HTTP method.
 	 * @param string $endpoint API endpoint.
 	 * @param array  $headers  Request headers.
@@ -189,8 +189,8 @@ class EWFW_API {
 	 * @throws Exception If error detected.
 	 */
 	private function handle_ewano_error( $data, $http_code ) {
-		$status       = $data['status'] ?? [];
-		$result       = $data['result'] ?? [];
+		$status        = $data['status'] ?? [];
+		$result        = $data['result'] ?? [];
 		$result_status = $result['status'] ?? [];
 
 		$status_code = $result_status['code'] ?? $status['code'] ?? $http_code;
@@ -202,7 +202,6 @@ class EWFW_API {
 
 		// Map of known EWANO error codes to Persian messages.
 		$error_messages = [
-			// Accounting errors (Table 32).
 			2401 => __( 'خطای داخلی سرور پرداخت. لطفاً با پشتیبانی تماس بگیرید.', 'ewfw' ),
 			2402 => __( 'درخواست توسط سرور پرداخت رد شد.', 'ewfw' ),
 			2411 => __( 'موجودی کیف پول یافت نشد.', 'ewfw' ),
@@ -221,16 +220,11 @@ class EWFW_API {
 			2498 => __( 'اطلاعات درخواستی یافت نشد.', 'ewfw' ),
 			2499 => __( 'درخواست نامعتبر است. لطفاً مجدداً تلاش کنید.', 'ewfw' ),
 			2501 => __( 'خطای عمومی سرور پرداخت. لطفاً با پشتیبانی تماس بگیرید.', 'ewfw' ),
-
-			// Contract / Access errors.
 			1002 => __( 'دسترسی غیرمجاز. لطفاً تنظیمات افزونه را بررسی کنید.', 'ewfw' ),
 			1009 => __( 'این شماره موبایل کیف پول اوانو ندارد. لطفاً ابتدا کیف پول خود را فعال کنید.', 'ewfw' ),
-			1059 => __( 'دسترسی به کیف پول تأیید نشده است. لطفاً ابتدا قرارداد را امضا کنید.', 'ewfw' ),
 			1102 => __( 'درخواست رد شد. شناسه کلاینت یا scope نامعتبر است.', 'ewfw' ),
 			1105 => __( 'این کاربر کیف پول ندارد.', 'ewfw' ),
 			1106 => __( 'کاربر یافت نشد.', 'ewfw' ),
-
-			// General errors.
 			401  => __( 'احراز هویت ناموفق. لطفاً تنظیمات افزونه را بررسی کنید.', 'ewfw' ),
 			403  => __( 'دسترسی غیرمجاز. لطفاً با مدیر سایت تماس بگیرید.', 'ewfw' ),
 			404  => __( 'سرویس مورد نظر در سرور پرداخت یافت نشد.', 'ewfw' ),
@@ -244,23 +238,19 @@ class EWFW_API {
 			throw new Exception( esc_html( $error_messages[ $status_code ] ) );
 		}
 
-		// Unknown error — show code and message if available.
+		// Unknown error — show only a generic message, never raw data.
 		$message = $result_status['message'] ?? $status['message'] ?? '';
-
 		if ( ! empty( $message ) ) {
 			throw new Exception(
 				sprintf(
-				/* translators: %s: error message from server */
 					__( 'خطای سرور پرداخت: %s', 'ewfw' ),
 					esc_html( $message )
 				)
 			);
 		}
 
-		// Fallback.
 		throw new Exception(
 			sprintf(
-			/* translators: %d: error code */
 				__( 'خطای نامشخص از سرور پرداخت (کد: %d). لطفاً با پشتیبانی تماس بگیرید.', 'ewfw' ),
 				absint( $status_code )
 			)
@@ -303,7 +293,7 @@ class EWFW_API {
 		] );
 
 		if ( empty( $res['data']['result']['data']['token'] ) ) {
-			throw new Exception( __( 'احراز هویت اِنوانو رد شد.', 'ewfw' ) . ' ' . wp_json_encode( $res['data'] ) );
+			throw new Exception( __( 'احراز هویت اِنوانو رد شد.', 'ewfw' ) );
 		}
 
 		$this->token = $res['data']['result']['data']['token'];
@@ -344,11 +334,12 @@ class EWFW_API {
 				'contract' => $res['data']['result']['data']['code'],
 			];
 		}
+
 		$status_code = $res['data']['result']['status']['code'] ?? 0;
 
 		// No wallet.
 		if ( 1009 === $status_code ) {
-			throw new Exception( __( 'کیف پول اِوانو برای این شماره فعال نیست', 'ewfw' ) );
+			throw new Exception( __( 'کیف پول اِوانو برای این شماره فعال نیست.', 'ewfw' ) );
 		}
 
 		// No contract – need redirect.
@@ -356,7 +347,7 @@ class EWFW_API {
 			return $this->reserve_contract( $msisdn, $callback_url );
 		}
 
-		throw new Exception( __( 'بررسی قرارداد موفق نبود.', 'ewfw' ) . ' ' . wp_json_encode( $res['data'] ) );
+		throw new Exception( __( 'بررسی قرارداد موفق نبود.', 'ewfw' ) );
 	}
 
 	/**
@@ -377,13 +368,20 @@ class EWFW_API {
 		] );
 
 		if ( ! empty( $res['data']['result']['data']['contractUrl'] ) ) {
+			$contract_url = $res['data']['result']['data']['contractUrl'];
+			// If the URL is already absolute, use it; otherwise prepend base URL.
+			if ( 0 === strpos( $contract_url, 'http' ) ) {
+				$final_url = $contract_url;
+			} else {
+				$final_url = $this->base_url . $contract_url;
+			}
 			return [
 				'status'       => 'redirect',
-				'contract_url' => $this->base_url . $res['data']['result']['data']['contractUrl'],
+				'contract_url' => $final_url,
 			];
 		}
 
-		throw new Exception( __( 'خطا در رزرو قرارداد.', 'ewfw' ) . ' ' . wp_json_encode( $res['data'] ) );
+		throw new Exception( __( 'خطا در رزرو قرارداد.', 'ewfw' ) );
 	}
 
 	/**
@@ -397,14 +395,14 @@ class EWFW_API {
 		$res = $this->request( 'GET', '/services/auth/v1.0/user/sdk/login/token-id', [
 			'clientId'     => $this->client_id,
 			'clientSecret' => $this->client_secret,
-			'msisdn'        => $msisdn,
+			'msisdn'       => $msisdn,
 		] );
 
 		if ( ! empty( $res['data']['result']['data']['id'] ) ) {
 			return $res['data']['result']['data']['id'];
 		}
 
-		throw new Exception( __( 'توکن احراز هویت دریافت نشد.', 'ewfw' ) . ' ' . wp_json_encode( $res['data'] ) );
+		throw new Exception( __( 'توکن احراز هویت دریافت نشد.', 'ewfw' ) );
 	}
 
 	/**
@@ -427,7 +425,7 @@ class EWFW_API {
 			return $res['data']['result']['data']['id'];
 		}
 
-		throw new Exception( __( 'خطا در رزور برداشتِ مبلغ.', 'ewfw' ) . ' ' . wp_json_encode( $res['data'] ) );
+		throw new Exception( __( 'خطا در رزرو برداشت مبلغ.', 'ewfw' ) );
 	}
 
 	/**
@@ -487,7 +485,7 @@ class EWFW_API {
 	 * @param string $contract_code  Contract UUID.
 	 * @param string $transaction_id Transaction ID from EWANO.
 	 * @param int    $amount         Amount to refund in Rials.
-	 * @param int    $order_id       WooCommerce order ID.
+	 * @param int    $order_id       WooCommerce order ID (for correlation).
 	 * @return string Refund ID.
 	 * @throws Exception On failure.
 	 */
@@ -499,14 +497,14 @@ class EWFW_API {
 			'Content-Type'  => 'application/json',
 		], [
 			'amount'  => $amount,
-			'orderId' => wp_generate_uuid4(),
+			'orderId' => (string) $order_id,
 		] );
 
 		if ( ! empty( $res['data']['result']['data']['id'] ) ) {
 			return $res['data']['result']['data']['id'];
 		}
 
-		throw new Exception( __( 'خطا در بازگشت وجه', 'ewfw' ) . ' ' . wp_json_encode( $res['data'] ) );
+		throw new Exception( __( 'خطا در بازگشت وجه.', 'ewfw' ) );
 	}
 
 	/**
@@ -528,7 +526,7 @@ class EWFW_API {
 	}
 
 	/**
-	 * Get bearer token.
+	 * Get bearer token (for debugging only, avoid using in production).
 	 *
 	 * @return string|null
 	 */

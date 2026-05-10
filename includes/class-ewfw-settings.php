@@ -69,7 +69,7 @@ class EWFW_Settings {
 			'ssl_verify' => [
 				'title'       => __( 'تأیید SSL', 'ewfw' ),
 				'type'        => 'select',
-				'description' => __( 'در صورت خطای TLS connect error، این گزینه را روی "غیرفعال" قرار دهید. توجه: غیرفعال کردن SSL امنیت ارتباط را کاهش می‌دهد.', 'ewfw' ),
+				'description' => __( 'در صورت خطای TLS connect error، این گزینه را روی "غیرفعال" قرار دهید. توجه: غیرفعال کردن SSL امنیت ارتباط را کاهش می‌دهد و فقط بر روش WordPress HTTP API تأثیر دارد.', 'ewfw' ),
 				'options'     => [
 					'enabled'  => __( 'فعال (پیش‌فرض امن)', 'ewfw' ),
 					'disabled' => __( 'غیرفعال (فقط در صورت خطای TLS)', 'ewfw' ),
@@ -128,15 +128,13 @@ class EWFW_Settings {
 	 * @return array
 	 */
 	private static function get_phone_sources() {
-		$sources = [
+		return [
 			'billing_phone' => __( 'موبایل صورت حساب', 'ewfw' ),
 			'manual'        => __( 'وارد کردن توسط مشتری', 'ewfw' ),
-			'digits'     => __( 'از منبع دیجیتس', 'ewfw' ),
+			'digits'        => __( 'از منبع دیجیتس', 'ewfw' ),
 			'post_meta'     => __( 'پست متا اختصاصی', 'ewfw' ),
 			'user_meta'     => __( 'یوزر متا اختصاصی', 'ewfw' ),
 		];
-
-		return $sources;
 	}
 
 	/**

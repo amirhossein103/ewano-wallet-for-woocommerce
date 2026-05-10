@@ -17,23 +17,19 @@
         function toggleMetaFields() {
             const selected = phoneSourceSelect.val();
 
+            // Hide all first.
+            postMetaRow.hide();
+            userMetaRow.hide();
+
             if (selected === 'post_meta') {
                 postMetaRow.show();
-                userMetaRow.hide();
             } else if (selected === 'user_meta') {
-                postMetaRow.hide();
                 userMetaRow.show();
-            } else {
-                postMetaRow.hide();
-                userMetaRow.hide();
             }
         }
 
-        // Initial toggle.
         if (phoneSourceSelect.length) {
             toggleMetaFields();
-
-            // On change.
             phoneSourceSelect.on('change', toggleMetaFields);
         }
     });

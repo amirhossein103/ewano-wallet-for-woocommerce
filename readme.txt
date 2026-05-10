@@ -1,96 +1,90 @@
 === EWANO Wallet for WooCommerce ===
 Contributors: amirhossein103
-Tags: ewanو, quality wallet, درگاه پرداخت, ووکامرس, پرداخت ریالی, ewanو wallet, payment gateway, woocommerce payment
-Requires at least: 5.0
-Tested up to: 6.5
-Requires PHP: 7.4
-WC requires at least: 5.0
-WC tested up to: 8.5
+Donate link: https://ewano.ir
+Tags: payment, wallet, e-wallet, EWANO, woocommerce, MCI, همراه اول
+Requires at least: 6.0
+Tested up to: 8.5
 Stable tag: 1.0.0
+Requires PHP: 7.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-پرداخت مستقیم از کیف پول اوانو در ووکامرس با پشتیبانی از کسر موجودی و پرداخت مابقی هزینه سفارش.
+Direct payment from EWANO wallet in WooCommerce stores, with contract signing, refund support, and flexible phone number extraction.
 
 == Description ==
 
-افزونه **EWANO Wallet for WooCommerce** امکان پرداخت امن و سریع از طریق کیف پول اوانو را برای فروشگاه‌های ووکامرس فراهم می‌کند. کاربران می‌توانند با شماره موبایل خود و تأیید رمز یکبارمصرف (OTP)، هزینه سفارش را مستقیماً از کیف پول اوانو پرداخت کنند.
+[EWANO](https://ewano.ir) wallet payment gateway for WooCommerce. This plugin integrates the official EWANO wallet, enabling customers to pay directly using their mobile wallet balance.
 
-= امکانات اصلی =
+**Features:**
 
-* اتصال مستقیم به API کیف پول اوانو (EWANO)
-* پشتیبانی از محیط‌های Sandbox (توسعه)، Stage (آزمایشی) و Production (عملیاتی)
-* تأیید پرداخت با رمز یکبارمصرف (OTP) از طریق SDK رسمی اوانو
-* پشتیبانی از بازگشت وجه (Refund) خودکار از پنل ووکامرس
-* مدیریت خودکار قرارداد (Contract) کاربر با اوانو
-* پشتیبانی از شماره موبایل فارسی و عربی (تبدیل خودکار)
-* سازگار با افزونه Digits برای دریافت شماره موبایل
-* تنظیمات ساده و کامل در پنل مدیریت ووکامرس
-* ترجمه شده به فارسی
-* سازگار با WooCommerce HPOS (High-Performance Order Storage)
-* سازگار با WooCommerce Cart & Checkout Blocks
-
-= نیازمندی‌ها =
-
-* ووکامرس نسخه ۵.۰ یا بالاتر
-* PHP نسخه ۷.۴ یا بالاتر
-* Client ID و Client Secret معتبر از EWANO (شرکت همراه کسب‌وکارهای هوشمند)
-
-= نحوه استفاده =
-
-1. افزونه را نصب و فعال کنید.
-2. از مسیر **ووکامرس > تنظیمات > پرداخت‌ها > کیف پول اوانو** تنظیمات را پیکربندی کنید.
-3. Client ID و Client Secret دریافتی از EWANO را وارد نمایید.
-4. محیط مورد نظر (Sandbox/Stage/Production) را انتخاب کنید.
-5. مشتریان می‌توانند در صفحه پرداخت، گزینه "کیف پول اوانو" را انتخاب و پرداخت را انجام دهند.
+* Secure payment with OTP confirmation via EWANO SDK.
+* Automatic contract signing flow for new users.
+* Full refund support directly from WooCommerce admin.
+* Detect phone number from billing, user meta, custom meta or manual input.
+* Persian and English user interface.
+* Configurable environment: Sandbox, Stage, Production.
+* Works with standard WordPress HTTP API or direct cURL (for legacy servers).
+* Fully compatible with WooCommerce 5.0+ and PHP 7.4+.
 
 == Installation ==
 
-1. فایل‌های افزونه را در پوشه `wp-content/plugins/ewano-wallet-for-woocommerce` آپلود کنید.
-2. افزونه را از بخش **پیشخوان وردپرس > افزونه‌ها** فعال کنید.
-3. از مسیر **ووکامرس > تنظیمات > پرداخت‌ها > کیف پول اوانو** تنظیمات را انجام دهید.
+1. Upload the `ewano-wallet-for-woocommerce` folder to `/wp-content/plugins/` or install via the WordPress plugin uploader.
+2. Activate the plugin through the 'Plugins' screen.
+3. Navigate to **WooCommerce > Settings > Payments** and enable **EWANO Wallet**.
 
-== Frequently Asked Questions ==
+== Configuration ==
 
-= آیا برای استفاده از این افزونه نیاز به حساب کاربری EWANO است؟ =
+1. Go to **WooCommerce > Settings > Payments > EWANO Wallet**.
+2. Set your **Client ID** and **Client Secret** (provided by EWANO).
+3. Choose the appropriate environment (Sandbox, Stage, Production).
+4. Select how to obtain the customer's phone number (billing, manual input, user/posts meta, etc.).
+5. Save changes.
 
-بله. باید از شرکت همراه کسب‌وکارهای هوشمند (EBCOM) یک Client ID و Client Secret معتبر دریافت کنید.
+Complete documentation: [GitHub Repository](https://github.com/amirhossein103/ewano-wallet-for-woocommerce)
 
-= آیا این افزونه از ریال پشتیبانی می‌کند؟ =
+== Usage ==
 
-بله. تمام مبالغ به ریال محاسبه و به EWANO ارسال می‌شوند.
+1. Customer selects **EWANO Wallet** on checkout.
+2. Phone number is auto‑detected or entered manually.
+3. If no active contract exists, the customer is redirected to EWANO to sign the agreement.
+4. After signing, the EWANO SDK opens; payment is completed with an OTP.
+5. Order is marked as paid in WooCommerce.
 
-= آیا می‌توانم از این افزونه در محیط Sandbox استفاده کنم؟ =
+== Troubleshooting ==
 
-بله. در تنظیمات افزونه می‌توانید محیط Sandbox را برای تست و توسعه انتخاب کنید. در این محیط هیچ پول واقعی جابه‌جا نمی‌شود.
+= Connection errors =
+If you experience `cURL error 6` or `TLS connect error`, switch the **Request Method** to `direct cURL` in the payment gateway settings. Note: SSL verification is disabled in cURL mode for compatibility with older servers.
 
-= تکلیف کاربرانی که کیف پول اوانو ندارند چیست؟ =
+= Invalid phone number =
+Make sure the phone number is entered as a 10‑digit number starting with `9` (e.g., `9123456789`). Persian and Arabic digits are automatically converted.
 
-اگر کاربر قرارداد دسترسی به کیف پول را امضا نکرده باشد، به صورت خودکار به صفحه امضای قرارداد EWANO هدایت می‌شود و پس از تأیید، فرآیند پرداخت ادامه می‌یابد.
+= Payment not completing =
+Check your **Client ID** and **Client Secret**. Also, ensure the **Callback URL** is reachable – the plugin uses home URL by default.
 
-= پشتیبانی از کسر موجودی و پرداخت مابقی چگونه است؟ =
+== Security ==
 
-در صورت کسر موجودی، کاربر با SDK اوانو تعامل می‌کند و مانده حساب از طریق درگاه بانکی (IPG) قابل پرداخت است. این قابلیت در نسخه‌های آینده بهبود خواهد یافت.
-
-== Screenshots ==
-
-1. صفحه تنظیمات افزونه در پنل ووکامرس
-2. انتخاب کیف پول اوانو در صفحه پرداخت
-3. صفحه تأیید رمز یکبارمصرف (OTP)
-4. بازگشت وجه از پنل مدیریت ووکامرس
+* Keep your **Client Secret** confidential.
+* In `cURL` mode SSL verification is bypassed intentionally to support legacy environments; prefer the `WordPress HTTP API` method in production.
+* Nonce verification is used on all AJAX and callback endpoints to prevent request forgery.
 
 == Changelog ==
 
-= 1.0.0 - 2026-05-06 =
-* انتشار نخستین نسخه
-* پشتیبانی از پرداخت از طریق SDK اوانو
-* پشتیبانی از بازگشت وجه
-* مدیریت خودکار قرارداد
-* سازگاری با افزونه Digits
-* پشتیبانی از شماره فارسی و عربی
-* ترجمه فارسی
+= 1.0.0 =
+* Initial stable release.
+* Support for contract creation, reserve, confirm, SDK integration, and refund.
+* Multiple phone number sources.
+* Dual HTTP request modes (WP HTTP API / cURL).
 
 == Upgrade Notice ==
 
 = 1.0.0 =
-نخستین نسخه پایدار. برای استفاده تجاری حتماً از محیط Production با تنظیمات معتبر استفاده کنید.
+First release. No upgrade steps required.
+
+== License ==
+
+This plugin is released under the GPLv2 (or later) license. See [LICENSE](https://www.gnu.org/licenses/gpl-2.0.html) for details.
+
+== Credits ==
+
+Developed by [Amirhossein Lalehei](https://github.com/amirhossein103).  
+EWANO is a service of Mobile Telecommunication Company of Iran (MCI).
