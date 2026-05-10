@@ -237,6 +237,32 @@ class EWFW_Gateway extends WC_Payment_Gateway {
 	}
 
 	/**
+	 * Convert a WooCommerce monetary amount (in store currency) to Rials (integer).
+	 *
+	 * Supports Iranian Toman/IRT, Rial/IRR, and other currencies.
+	 *
+	 * @param float $amount Store-currency amount.
+	 * @return int Amount in Rials.
+	 */
+	private function convert_to_rial( $amount ) {
+		$currency = get_woocommerce_currency();
+
+		// Known Iranian currencies
+		if ( 'IRT' === $currency || 'TOMAN' === $currency ) {
+			// 1 Toman = 10 Rials
+			return (int) round( $amount * 10 );
+		} elseif ( 'IRR' === $currency || 'RIAL' === $currency ) {
+			return (int) round( $amount );
+		} else {
+			// For other currencies, assume the smallest unit equals one Rial.
+			// Multiply by 10^decimals to get an integer.
+			$decimals = wc_get_price_decimals();
+			$factor   = pow( 10, $decimals );
+			return (int) round( $amount * $factor );
+		}
+	}
+
+	/**
 	 * Process payment.
 	 *
 	 * @param  int $order_id Order ID.
@@ -245,7 +271,7 @@ class EWFW_Gateway extends WC_Payment_Gateway {
 	public function process_payment( $order_id ) {
 		try {
 			$order  = wc_get_order( $order_id );
-			$amount = (int) $order->get_total();
+			$amount_rial = $this->convert_to_rial( $order->get_total() );
 
 			// phpcs:ignore WordPress.Security.NonceVerification.Missing
 			$custom_phone = isset( $_POST['ewfw_phone'] ) ? sanitize_text_field( wp_unslash( $_POST['ewfw_phone'] ) ) : '';
@@ -293,7 +319,7 @@ class EWFW_Gateway extends WC_Payment_Gateway {
 			// Contract exists — continue.
 			$contract_code = $contract_result['contract'];
 			$token_id      = $api->get_token_id( $phone );
-			$reserve_id    = $api->reserve( $contract_code, $amount );
+			$reserve_id    = $api->reserve( $contract_code, $amount_rial );
 
 			// Save meta.
 			$order->update_meta_data( '_ewfw_contract_code', $contract_code );
@@ -326,7 +352,7 @@ class EWFW_Gateway extends WC_Payment_Gateway {
 			wp_send_json_error( __( 'شماره سفارش نامعتبر است.', 'ewfw' ) );
 		}
 
-		// Prevent guest access to critical data if not order owner (optional).
+		// Prevent guest access to critical data if not order owner.
 		if ( ! is_user_logged_in() || (int) $order->get_customer_id() !== get_current_user_id() ) {
 			wp_send_json_error( __( 'دسترسی غیرمجاز.', 'ewfw' ) );
 		}
@@ -449,7 +475,7 @@ class EWFW_Gateway extends WC_Payment_Gateway {
 	 * Process refund.
 	 *
 	 * @param  int    $order_id Order ID.
-	 * @param  float  $amount   Refund amount.
+	 * @param  float  $amount   Refund amount in store currency.
 	 * @param  string $reason   Refund reason.
 	 * @return bool|WP_Error
 	 */
@@ -457,6 +483,29 @@ class EWFW_Gateway extends WC_Payment_Gateway {
 		$order = wc_get_order( $order_id );
 
 		try {
+			// --- Basic amount validation ---
+			if ( ! is_numeric( $amount ) || $amount <= 0 ) {
+				throw new Exception( __( 'مبلغ بازگشت وجه نامعتبر است.', 'ewfw' ) );
+			}
+
+			// Prevent duplicate full refund.
+			if ( $order->get_total_refunded() >= $order->get_total() ) {
+				throw new Exception( __( 'این سفارش قبلاً به‌طور کامل بازگشت داده شده است.', 'ewfw' ) );
+			}
+
+			// Ensure refund doesn't exceed available amount.
+			$max_refund = $order->get_total() - $order->get_total_refunded();
+			if ( $amount > $max_refund ) {
+				throw new Exception( sprintf(
+					__( 'مبلغ بازگشت وجه نمی‌تواند بیشتر از %s باشد.', 'ewfw' ),
+					wc_price( $max_refund )
+				) );
+			}
+
+			// Convert store amount to Rials for EWANO.
+			$amount_rial = $this->convert_to_rial( $amount );
+
+			// --- Connect to EWANO ---
 			$api = new EWFW_API();
 			$api->client_login();
 
@@ -467,14 +516,17 @@ class EWFW_Gateway extends WC_Payment_Gateway {
 				throw new Exception( __( 'اطلاعات پرداخت برای بازگشت وجه یافت نشد.', 'ewfw' ) );
 			}
 
-			$refund_id = $api->refund_submit( $contract_code, $transaction_id, (int) $amount, $order_id );
+			$refund_id = $api->refund_submit( $contract_code, $transaction_id, $amount_rial, $order_id );
 			$api->refund_confirm( $contract_code, $refund_id );
 
+			// Store refund meta to prevent duplicate refunds for the same transaction.
+			$order->update_meta_data( '_ewfw_refund_id', $refund_id );
 			$order->add_order_note(
 				sprintf(
-				/* translators: 1: refund amount, 2: EWANO refund ID */
-					__( 'بازگشت %1$s ریال از اِوانو. شناسه عودت وجه: %2$s', 'ewfw' ),
-					$amount,
+				/* translators: 1: refund amount in store currency, 2: refund amount in Rials, 3: EWANO refund ID */
+					__( 'بازگشت %1$s (معادل %2$s ریال) از اِوانو. شناسه عودت وجه: %3$s', 'ewfw' ),
+					wc_price( $amount ),
+					$amount_rial,
 					$refund_id
 				)
 			);
